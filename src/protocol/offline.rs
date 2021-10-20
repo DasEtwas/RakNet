@@ -176,7 +176,8 @@ pub fn handle_offline(
                     server_id: SERVER_ID,
                     timestamp: connection.time.elapsed().unwrap().as_millis() as i64,
                     magic: Magic::new(),
-                    motd: connection.get_motd().encode(),
+                    // motd: connection.get_motd().encode(),
+                    motd: Motd::default().encode(),
                };
                pong.parse()
           }

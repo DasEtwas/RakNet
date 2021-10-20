@@ -83,9 +83,10 @@ pub struct Connection {
      pub state: ConnectionState,
      /// A list of events to be emitted on next tick.
      pub event_dispatch: VecDeque<RakNetEvent>,
-     /// A function that is called when the server recieves a
-     /// `GamePacket: 0xfe` from the client.
-     pub recv: Arc<RecievePacketFn>,
+     // /// A function that is called when the server recieves a
+     // /// `GamePacket: 0xfe` from the client.
+     
+     // pub recv: Arc<RecievePacketFn>,
      /// The last time the client has sent something to the server, that was a connected packet.
      pub recv_time: SystemTime,
      /// A Vector of streams to be sent.
@@ -117,16 +118,16 @@ pub struct Connection {
      ack: AckQueue,
      /// The NACK queue (Packets we didn't get)
      nack: NAckQueue,
-     /// The Motd reference.
-     motd: Arc<Motd>,
+     // The Motd reference.
+     // motd: Arc<Motd>,
 }
 
 impl Connection {
      pub fn new(
           address: SocketAddr,
           start_time: SystemTime,
-          recv: Arc<RecievePacketFn>,
-          motd: Arc<Motd>,
+          // recv: Arc<RecievePacketFn>,
+          // motd: Arc<Motd>,
      ) -> Self {
           Self {
                address,
@@ -135,7 +136,7 @@ impl Connection {
                mtu_size: 2048,
                state: ConnectionState::Disconnected,
                event_dispatch: VecDeque::new(),
-               recv,
+               // recv,
                send_queue: VecDeque::new(),
                send_queue_large: VecDeque::new(),
                fragmented: FragmentStore::new(),
@@ -144,7 +145,7 @@ impl Connection {
                fragment_id: 0,
                ack: AckQueue::new(),
                nack: NAckQueue::new(),
-               motd,
+               // motd,
           }
      }
 
@@ -285,7 +286,8 @@ impl Connection {
           let online_packet = OnlinePackets::recv(body_stream.read_u8().unwrap());
 
           if online_packet == OnlinePackets::GamePacket {
-               self.recv.as_ref()(self, &mut body_stream.get_mut());
+               // self.recv.as_ref()(self, &mut body_stream.get_mut());
+               println!("Game packet would be sent now!");
           } else {
                let response = handle_online(self, online_packet.clone(), &mut frame.body);
 
@@ -370,7 +372,7 @@ impl Connection {
           }
      }
 
-     pub fn get_motd(&self) -> Motd {
-          self.motd.as_ref().clone()
-     }
+     // pub fn get_motd(&self) -> Motd {
+     //      self.motd.as_ref().clone()
+     // }
 }

@@ -7,7 +7,6 @@ use rakrs::RakNetEvent;
 use binary_utils::*;
 use std::sync::{Arc};
 
-#[tokio::main]
 async fn main() {
      let mut server = RakNetServer::new(String::from("0.0.0.0:19132"));
      server.set_motd(Motd {
