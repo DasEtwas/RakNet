@@ -19,7 +19,6 @@ async fn main() {
           version: "1.18.9".to_owned(),
           server_id: 2747994720109207718 as i64
      });
-     server.start().await.expect("An error occurred.");
+     server.start().await;
      dbg!("Hi I am running concurrently.");
-
 }

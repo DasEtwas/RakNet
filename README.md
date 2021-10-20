@@ -28,37 +28,46 @@ pub struct MyPacket {
 ```rust
 use rakrs::Server as RakServer;
 
-fn main() {
+#[tokio::main]
+async fn main() {
     let mut server = RakServer::new("0.0.0.0:19132".into());
     
-    // Setting the Message Of The Day
-    server.set_motd(Motd {
-        name: "Server Name".into(),
-        protocol: 420,
-        player_count: 0,
-        player_max: 10,
-        gamemode: "Creative".into(),
-        version: "1.18.0".into(),
-        server_id: server.server_id.into()
-    });
-    
-    let join_fn = Arc::new(|_con: &mut Connection, packet: &mut Vec<u8>| {
-        println!("Gamepacket was recieved!");
-    });
-    
-    let event_fn = Box::new(|event: &RakNetEvent| {
-        match *event {
-            RakNetEvent::Disconnect(address, reason) => {
-                println!("{} was disconnected due to: {}", address, reason);
-            },
-            RakNetEvent::ConnectionCreated(address) => {
-                println!("{} has joined the server.");
-            },
-            _ => return
+    // The even listener is not it's own loop
+    // Events are fired as they occur
+    // (they can occur in the sender or reciever thread)
+    server.on(listener!(
+        RakEvent::Disconnect,
+        |address: String, reason: String| {
+            println!("{} was disconnected because of: {}", address, reason);
         }
-    });
+    ));
     
-    raknet_start!(server, join_fn, event_fn);
+    server.on(listener!(
+        RakEvent::GamePacket,
+        |con: &mut Connection, buffer: &mut Vec<u8>| {
+            println!("{} sent a game packet with the size of: {}",
+            	con.address.to_string(),
+            	buffer.len()
+            );
+        }
+    ));
+    
+    server.on(listener!(
+    	RakEvent::Motd,
+        |address: String| -> Motd {
+            Motd {
+                name: "Server Name".into(),
+                protocol: 420,
+                player_count: 0,
+                player_max: 10,
+                gamemode: "Creative".into(),
+                version: "1.18.0".into(),
+                server_id: server.server_id.into()
+            })
+        }
+    ));
+    
+    server.start().await;
 }
 ```
 
