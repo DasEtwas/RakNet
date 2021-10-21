@@ -167,6 +167,7 @@ impl Connection {
      /// The recieve handle for a connection.
      /// This is called when RakNet parses any given byte buffer from the socket.
      pub fn recv(&mut self, buf: &Vec<u8>) {
+          println!("Got a packet!");
           let mut stream = Cursor::new(buf);
           // Update the recieve time.
           self.recv_time = SystemTime::now();
