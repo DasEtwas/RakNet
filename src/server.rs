@@ -1,7 +1,6 @@
 use crate::conn::{Connection, ConnectionState};
 use crate::util::{from_tokenized, tokenize_addr};
 use crate::Motd;
-use crossbeam_utils::thread as cross_thread;
 use std::any::Any;
 use std::collections::HashMap;
 use std::net::UdpSocket;
@@ -128,7 +127,7 @@ impl RakNetServer {
     pub fn start(
         &mut self,
         mut event_dispatch: Box<RakEventListenerFn>,
-    ) -> Result<(), Box<dyn Any + Send>> {
+    ) -> (impl FnMut(), impl FnMut()) {
         let socket = UdpSocket::bind(self.address.clone());
         let server_socket: Arc<UdpSocket> = Arc::new(socket.expect("Something is already using this socket address."));
         let server_socket_1: Arc<UdpSocket> = Arc::clone(&server_socket);
@@ -137,8 +136,7 @@ impl RakNetServer {
         let server_time = Arc::new(self.start_time);
         let motd = Arc::clone(&self.motd);
 
-        let threads = cross_thread::scope(|s| {
-            s.spawn(move |_| {
+        let receive = move || {
                 let mut buf = [0; 2048];
 
                 loop {
@@ -166,66 +164,65 @@ impl RakNetServer {
 
                     client.recv(&data.to_vec());
                 }
-            });
-            s.spawn(move |_| {
-                loop {
-                    thread::sleep(Duration::from_millis(50));
-                    let mut clients = clients_send.lock().unwrap();
-                    for (addr, _) in clients.clone().iter() {
-                        let client = clients.get_mut(addr).expect("Could not get connection");
-                        client.do_tick();
+            };
+        let sender = move || {
+            loop {
+                thread::sleep(Duration::from_millis(50));
+                let mut clients = clients_send.lock().unwrap();
+                for (addr, _) in clients.clone().iter() {
+                    let client = clients.get_mut(addr).expect("Could not get connection");
+                    client.do_tick();
 
-                        let dispatch = client.event_dispatch.clone();
-                        client.event_dispatch.clear();
+                    let dispatch = client.event_dispatch.clone();
+                    client.event_dispatch.clear();
 
-                        // emit events if there is a listener for the
-                        for event in dispatch.iter() {
-                            // println!("DEBUG => Dispatching: {:?}", &event.get_name());
-                            if let Some(result) = event_dispatch(event) {
-                                match result {
-                                    RakResult::Motd(_v) => {
-                                        // we don't really support changing
-                                        // client MOTD at the moment...
-                                        // so we don't do anything for this.
-                                    }
-                                    RakResult::Error(v) => {
-                                        // Calling error forces an error to raise.
-                                        panic!("{}", v);
-                                    }
-                                    RakResult::Disconnect(_) => {
-                                        client.state = ConnectionState::Offline; // simple hack
-                                        break;
-                                    }
+                    // emit events if there is a listener for the
+                    for event in dispatch.iter() {
+                        // println!("DEBUG => Dispatching: {:?}", &event.get_name());
+                        if let Some(result) = event_dispatch(event) {
+                            match result {
+                                RakResult::Motd(_v) => {
+                                    // we don't really support changing
+                                    // client MOTD at the moment...
+                                    // so we don't do anything for this.
+                                }
+                                RakResult::Error(v) => {
+                                    // Calling error forces an error to raise.
+                                    panic!("{}", v);
+                                }
+                                RakResult::Disconnect(_) => {
+                                    client.state = ConnectionState::Offline; // simple hack
+                                    break;
                                 }
                             }
                         }
-
-                        if client.state == ConnectionState::Offline {
-                            clients.remove(addr);
-                            continue;
-                        }
-
-                        if client.send_queue.len() == 0 {
-                            continue;
-                        }
-
-                        for pk in client.clone().send_queue.into_iter() {
-                            match server_socket_1
-                                .as_ref()
-                                .send_to(&pk[..], &from_tokenized(addr.clone()))
-                            {
-                                // Add proper handling!
-                                Err(e) => eprintln!("Error Sending Packet [{}]: ", e),
-                                Ok(_) => continue // println!("\nSent Packet [{}]: {:?}", addr, pk)
-                            }
-                        }
-                        client.send_queue.clear();
                     }
-                    drop(clients);
-                }
-            });
-        });
 
-        return threads;
+                    if client.state == ConnectionState::Offline {
+                        clients.remove(addr);
+                        continue;
+                    }
+
+                    if client.send_queue.len() == 0 {
+                        continue;
+                    }
+
+                    for pk in client.clone().send_queue.into_iter() {
+                        match server_socket_1
+                            .as_ref()
+                            .send_to(&pk[..], &from_tokenized(addr.clone()))
+                        {
+                            // Add proper handling!
+                            Err(e) => eprintln!("Error Sending Packet [{}]: ", e),
+                            Ok(_) => continue // println!("\nSent Packet [{}]: {:?}", addr, pk)
+                        }
+                    }
+                    client.send_queue.clear();
+                }
+                drop(clients);
+            }
+        };
+
+        return (sender, receive);
     }
 }
